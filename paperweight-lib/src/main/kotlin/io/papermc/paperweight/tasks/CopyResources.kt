@@ -51,12 +51,13 @@ abstract class CopyResources : BaseTask() {
         outputJar.convention(defaultOutput())
         includes.convention(
             listOf(
-                "/data/**",
-                "/assets/**",
-                "version.json",
-                "yggdrasil_session_pubkey.der",
-                "pack.mcmeta",
-                "flightrecorder-config.jfc",
+                "**/*.class", "/META-INF/**"
+//                "/data/**",
+//                "/assets/**",
+//                "version.json",
+//                "yggdrasil_session_pubkey.der",
+//                "pack.mcmeta",
+//                "flightrecorder-config.jfc",
             )
         )
     }

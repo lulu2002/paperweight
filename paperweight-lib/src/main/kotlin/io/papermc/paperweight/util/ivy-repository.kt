@@ -22,8 +22,14 @@
 
 package io.papermc.paperweight.util
 
+import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.nio.file.Path
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 import javax.xml.XMLConstants
 import javax.xml.stream.XMLOutputFactory
 import kotlin.io.path.*
@@ -64,6 +70,8 @@ fun installToIvyRepo(
     val ivy = versionDir.resolve("ivy-$version.xml")
     val xml = writeIvyModule(module, dependencies.map { parseModule(it) })
 
+    removeMetaInfFromJar(binaryJar.toString(), "$binaryJar-temp")
+
     val upToDate = upToDate(sourcesDestination, jarDestination, ivy, sourcesJar, binaryJar, xml)
     if (upToDate) {
         return false
@@ -75,9 +83,49 @@ fun installToIvyRepo(
         sourcesJar.copyTo(sourcesDestination, overwrite = true)
     }
     binaryJar.copyTo(jarDestination, overwrite = true)
+
+
     ivy.writeText(xml, Charsets.UTF_8)
 
     return true
+}
+
+private fun removeMetaInfFromJar(jarFilePath: String, outputJarFilePath: String) {
+    val jarFile = File(jarFilePath)
+    val tempJarFile = File(outputJarFilePath)
+
+    if (!jarFile.exists() || !jarFile.isFile) {
+        println("Invalid JAR file: $jarFilePath")
+        return
+    }
+
+    ZipFile(jarFile).use { zipFile ->
+        ZipOutputStream(BufferedOutputStream(FileOutputStream(tempJarFile))).use { zipOutputStream ->
+            zipFile.entries().asSequence().forEach { entry ->
+                if (!entry.name.startsWith("META-INF/")) {
+                    val newEntry = ZipEntry(entry.name)
+                    newEntry.time = entry.time
+                    newEntry.size = entry.size
+                    newEntry.crc = entry.crc
+                    newEntry.comment = entry.comment
+                    newEntry.extra = entry.extra
+
+                    zipOutputStream.putNextEntry(newEntry)
+                    zipFile.getInputStream(entry).use { inputStream ->
+                        inputStream.copyTo(zipOutputStream)
+                    }
+                    zipOutputStream.closeEntry()
+                }
+            }
+        }
+    }
+
+    // Optionally, replace the original jar file with the modified one
+    if (jarFile.delete()) {
+        tempJarFile.renameTo(jarFile)
+    } else {
+        println("Failed to delete original JAR file")
+    }
 }
 
 private fun upToDate(
